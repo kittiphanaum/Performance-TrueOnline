@@ -111,6 +111,8 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
 .wsel select{font-size:14px;padding:8px 12px;min-width:240px;max-width:100%;border-radius:10px}
 .wnote{font-size:12px;color:var(--muted);flex:1 1 220px}
 .wnote b{color:var(--fg)}
+.pill.nsbtn{font-family:var(--f-display)}
+.pill.nsbtn.on{background:var(--hot);border-color:var(--hot);color:#fff}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{background:var(--surface2);border-radius:10px;padding:10px 12px}
 .tile .k{font-size:12px;color:var(--muted)}
@@ -241,6 +243,7 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
     <div class="card">
       <h2><span>Staff Ranking <small id="staffCount"></small></span>
         <span class="row-inline">
+          <button type="button" class="pill nsbtn" id="btnNS" aria-pressed="false">No Sale</button>
           <select id="fPos" aria-label="ตำแหน่ง"></select>
           <input type="search" id="qStaff" placeholder="ค้นหา ID / ชื่อ / สาขา" aria-label="ค้นหาพนักงาน">
         </span></h2>
@@ -248,7 +251,7 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
       <p class="note" style="margin-top:10px">Target จากชีท Target By Staff Oct (คอลัมน์ TOL) · Actual นับ Connect ตาม SALE_REPRESENT (เงื่อนไขเดียวกับยอด Connect) · Total Register = TOL-REGISTER ทุก Status · KPI · APPOINT_DAY ไม่ว่าง นับตาม TM_KEY_DAY ในช่วงวันที่ที่เลือก · Pending Register = TOL-REGISTER · KPI · SUBS_STATUS = Pending แยกเดือนตาม APPOINT_DAY · เรียงตาม %RR ค่าเริ่มต้น คลิกหัวคอลัมน์เพื่อเรียงใหม่</p>
     </div>
     <div class="card">
-      <h2><span>No Sale ราย Area × Employee Type <small id="nsCount"></small></span><small>จำนวนพนักงานที่ Connect = 0 ในช่วงวันที่ที่เลือก · สีแดงเข้ม = No Sale มาก · คลิกช่องเพื่อดูรายชื่อในตาราง Staff Ranking ด้านบน</small></h2>
+      <h2><span>No Sale ราย Area × Employee Type <small id="nsCount"></small></span><small>จำนวนพนักงานที่ Connect = 0 ในช่วงวันที่ที่เลือก · สีแดงเข้ม = No Sale มาก · คลิกชื่อ Area เพื่อดูรายสาขา · คลิกช่องตัวเลขเพื่อดูรายชื่อ No Sale ในตาราง Staff Ranking ด้านบน</small></h2>
       <div class="tscroll"><table id="tNS"></table></div>
     </div>
   </div>
@@ -293,7 +296,7 @@ function metrics(list){
 function heat(v,min,max){
   if(v==null||!isFinite(v)) return "";
   const mid=(min+max)/2; let h;
-  if(max-min<1e-9) h=60; else if(v<=mid) h=60*(v-min)/(mid-min||1); else h=60+60*(v-mid)/(max-mid||1);
+  if(max-min<1e-9) return ""; else if(v<=mid) h=60*(v-min)/(mid-min||1); else h=60+60*(v-mid)/(max-mid||1);
   const cs=getComputedStyle(document.documentElement);
   return `background:hsl(${h.toFixed(0)} ${cs.getPropertyValue("--heat-s")} ${cs.getPropertyValue("--heat-l")})`;
 }
@@ -325,7 +328,7 @@ dFrom.onchange=()=>{ st.from=+dFrom.value; if(st.from>st.to){st.to=st.from; dTo.
 dTo.onchange=()=>{ st.to=+dTo.value; if(st.to<st.from){st.from=st.to; dFrom.value=st.from;} render(); };
 fArea.onchange=()=>{ st.area=fArea.value||null; render(); };
 btnReset.onclick=()=>{ Object.assign(st,{region:null,area:null,type:null,from:1,to:MAXD,lm:"full",qShop:"",qStaff:"",pos:""});
-  dFrom.value=1; dTo.value=MAXD; qShop.value=""; qStaff.value=""; fPos.value=""; render(); };
+  dFrom.value=1; dTo.value=MAXD; qShop.value=""; qStaff.value=""; fPos.value=""; setNoSale(false); render(); };
 
 /* ---------- tables ---------- */
 const METRIC_HEAD = `<th class="g">TARGET</th><th>Actual</th><th>%ACH</th><th>GAP</th>
@@ -397,6 +400,9 @@ function renderShop(){
 const posList=[...new Set(DATA.staff.map(p=>p.ty))];
 fPos.innerHTML=`<option value="">ทุกตำแหน่ง</option>`+posList.map(p=>`<option>${esc(p)}</option>`).join("");
 fPos.onchange=()=>{st.pos=fPos.value; render();};
+st.noSale=false;
+function setNoSale(v){ st.noSale=v; btnNS.classList.toggle("on",v); btnNS.setAttribute("aria-pressed",v); btnNS.textContent=v?"No Sale ✕":"No Sale"; }
+btnNS.onclick=()=>{ setNoSale(!st.noSale); render(); };
 function staffMetrics(p){
   const dd=days(), A=sum(p.co,st.from,st.to), T=p.tg, RR=A/dd*MONTH_DAYS;
   const L= st.lm==="full"? sum(p.cp,1,30) : sum(p.cp,st.from,Math.min(st.to,30));
@@ -408,7 +414,7 @@ function renderStaff(){
   const q=st.qStaff.trim().toLowerCase();
   let rows=DATA.staff.filter(p=>(!st.region||p.r===st.region)&&(!st.area||p.a===st.area)&&(!st.type||p.t===st.type)&&(!st.pos||p.ty===st.pos)
      &&(!q||p.e.includes(q)||p.n.toLowerCase().includes(q)||String(p.sn).toLowerCase().includes(q)||p.s.includes(q)))
-     .map(p=>({p,m:staffMetrics(p)}));
+     .map(p=>({p,m:staffMetrics(p)})).filter(x=>!st.noSale||(x.m.A===0&&x.p.ty!=="ไม่มีใน Target"));
   const types={e:"str",n:"str",ty:"str",sn:"str",a:"str"};
   const cmp=sorter(st.sortStaff,(x,k)=>k in types? x.p[k] : x.m[k],types); if(cmp) rows.sort(cmp);
   const rng=ranges(rows.map(x=>x.m).filter(m=>m.T>0));
@@ -542,26 +548,39 @@ function renderLT(){
 }
 
 /* ---------- No Sale matrix ---------- */
+const nsOpen=new Set();
 function renderNS(){
   const base=DATA.staff.filter(p=>p.ty!=="ไม่มีใน Target"&&(!st.region||p.r===st.region)&&(!st.area||p.a===st.area)&&(!st.type||p.t===st.type));
-  const ns=base.filter(p=>sum(p.co,st.from,st.to)===0);
+  const isNS=p=>sum(p.co,st.from,st.to)===0;
+  const ns=base.filter(isNS);
   const types=[...new Set(DATA.staff.filter(p=>p.ty!=="ไม่มีใน Target").map(p=>p.ty))];
   const areaOrder=[...new Set(DATA.shops.map(s=>s.a))];
   const areas=[...new Set(base.map(p=>p.a))].sort((a,b)=>{const i=areaOrder.indexOf(a),j=areaOrder.indexOf(b); return (i<0?99:i)-(j<0?99:j);});
-  const cnt={}, hc={}; for(const p of ns){ const k=p.a+"|"+p.ty; cnt[k]=(cnt[k]||0)+1; }
-  for(const p of base){ const k=p.a+"|"+p.ty; hc[k]=(hc[k]||0)+1; }
+  const cnt={}; for(const p of ns){ const k=p.a+"|"+p.ty; cnt[k]=(cnt[k]||0)+1; }
   const mx=Math.max(1,...Object.values(cnt));
   const cs=getComputedStyle(document.documentElement), dark=parseFloat(cs.getPropertyValue("--heat-l"))<50;
-  const red=n=>{ if(!n) return ""; const r=n/mx; return dark? `background:rgba(255,90,90,${(0.15+0.65*r).toFixed(2)})` : `background:rgba(227,0,27,${(0.08+0.72*r).toFixed(2)});${r>0.55?"color:#fff;font-weight:600":""}`; };
-  const cell=(a,ty)=>{ const n=cnt[a+"|"+ty]||0, h=hc[a+"|"+ty]||0;
-    return `<td class="ns" style="${red(n)}" data-a="${esc(a)}" data-t="${esc(ty)}" title="${esc(a)} · ${esc(ty)}: No Sale ${n} จาก ${h} คน">${h? (n||"0") : '<span class="mut">-</span>'}</td>`; };
-  const colTot=ty=>ns.filter(p=>p.ty===ty).length, rowTot=a=>ns.filter(p=>p.a===a).length;
-  const rowHC=a=>base.filter(p=>p.a===a).length;
-  tNS.innerHTML=`<thead><tr><th style="text-align:left">AREA</th>${types.map(ty=>`<th>${esc(ty)}</th>`).join("")}<th class="g hot">Total<br>No Sale</th><th>พนักงาน<br>ทั้งหมด</th><th>% No Sale</th></tr></thead><tbody>${
-    areas.map(a=>{const rt=rowTot(a), h=rowHC(a); return `<tr><td class="l name">${esc(a)}</td>${types.map(ty=>cell(a,ty)).join("")}<td class="g c"><b>${fmt(rt)}</b></td><td class="c mut">${fmt(h)}</td><td class="c">${pct(h?rt/h:null)}</td></tr>`;}).join("")
-  }</tbody><tfoot><tr><td class="l">Total</td>${types.map(ty=>`<td class="c">${fmt(colTot(ty))}</td>`).join("")}<td class="g c">${fmt(ns.length)}</td><td class="c">${fmt(base.length)}</td><td class="c">${pct(base.length?ns.length/base.length:null)}</td></tr></tfoot>`;
+  const red=(n,m)=>{ if(!n) return ""; const r=Math.min(1,n/m); return dark? `background:rgba(255,90,90,${(0.15+0.65*r).toFixed(2)})` : `background:rgba(227,0,27,${(0.08+0.72*r).toFixed(2)});${r>0.55?"color:#fff;font-weight:600":""}`; };
+  const row=(label,list,cls,attrs,m,sub)=>{
+    const nsl=list.filter(isNS);
+    const cells=types.map(ty=>{ const h=list.filter(p=>p.ty===ty).length, n=nsl.filter(p=>p.ty===ty).length;
+      return `<td class="ns" style="${red(n,m)}" ${attrs} data-t="${esc(ty)}" title="${esc(sub||"")} ${esc(ty)}: No Sale ${n} จาก ${h} คน">${h?(n||"0"):'<span class="mut">-</span>'}</td>`; }).join("");
+    return `<tr class="${cls}">${label}${cells}<td class="g c"><b>${fmt(nsl.length)}</b></td><td class="c mut">${fmt(list.length)}</td><td class="c">${pct(list.length?nsl.length/list.length:null)}</td></tr>`; };
+  let body="";
+  for(const a of areas){ const list=base.filter(p=>p.a===a), open=nsOpen.has(a);
+    body+=row(`<td class="l name nsarea" tabindex="0" data-k="${esc(a)}" style="cursor:pointer${open?";background:var(--accent-soft)":""}"><span class="caret">${open?"▼":"▶"}</span>${esc(a)}</td>`,list,"",`data-a="${esc(a)}"`,mx,a);
+    if(open){
+      const shops=[...new Set(list.map(p=>p.s))].map(c=>{const l=list.filter(p=>p.s===c); return {c,n:l[0].sn,l,z:l.filter(isNS).length};}).sort((x,y)=>y.z-x.z||x.n.localeCompare(y.n));
+      const smx=Math.max(1,...shops.flatMap(o=>types.map(ty=>o.l.filter(p=>p.ty===ty&&isNS(p)).length)));
+      body+=shops.map(o=>row(`<td class="l ind">${esc(o.n)} <span class="cnt">${o.c}</span></td>`,o.l,"ltsub",`data-a="${esc(a)}" data-s="${o.c}"`,smx,o.n)).join("");
+    } }
+  const colTot=ty=>ns.filter(p=>p.ty===ty).length;
+  tNS.innerHTML=`<thead><tr><th style="text-align:left">AREA / SHOP</th>${types.map(ty=>`<th>${esc(ty)}</th>`).join("")}<th class="g hot">Total<br>No Sale</th><th>พนักงาน<br>ทั้งหมด</th><th>% No Sale</th></tr></thead><tbody>${body}</tbody>
+    <tfoot><tr><td class="l">Total</td>${types.map(ty=>`<td class="c">${fmt(colTot(ty))}</td>`).join("")}<td class="g c">${fmt(ns.length)}</td><td class="c">${fmt(base.length)}</td><td class="c">${pct(base.length?ns.length/base.length:null)}</td></tr></tfoot>`;
   nsCount.textContent=`${fmt(ns.length)} คน`;
+  tNS.querySelectorAll("td.nsarea").forEach(td=>{ const f=()=>{ const k=td.dataset.k; nsOpen.has(k)?nsOpen.delete(k):nsOpen.add(k); renderNS(); };
+    td.onclick=f; td.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault(); f();} }; });
   tNS.querySelectorAll("td.ns").forEach(td=>td.onclick=()=>{ st.area=td.dataset.a; st.pos=td.dataset.t; fPos.value=st.pos;
+    st.qStaff=td.dataset.s||""; qStaff.value=st.qStaff; setNoSale(true);
     st.sortStaff={k:"A",d:1}; render(); document.getElementById("tStaff").scrollIntoView({behavior:"smooth",block:"start"}); });
 }
 
