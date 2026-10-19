@@ -78,6 +78,7 @@ select,input[type=search]{font-family:var(--f-body);font-size:13px;background:va
 table{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums;font-size:13px}
 th{background:var(--head);color:var(--head-fg);font-family:var(--f-display);font-weight:500;font-size:12px;padding:8px 8px;text-align:center;line-height:1.25;white-space:nowrap;position:sticky;top:0;z-index:1}
 th.hot{background:var(--hot)}
+th.need{background:var(--accent)}
 th.sort{cursor:pointer;user-select:none}
 th.sort::after{content:" ↕";opacity:.45;font-size:10px}
 th.sort.asc::after{content:" ▲";opacity:1}
@@ -113,6 +114,18 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
 .wnote b{color:var(--fg)}
 .pill.nsbtn{font-family:var(--f-display)}
 .pill.nsbtn.on{background:var(--hot);border-color:var(--hot);color:#fff}
+.tycard{padding:0;overflow:hidden}
+.tyhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;flex-wrap:wrap}
+.tyhead h3{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0}
+.tyhead .meta{font-size:12px;color:var(--muted)}
+.tyhead .meta b{color:var(--neg)}
+.tybadge{display:inline-block;border-radius:8px;padding:3px 10px;font-family:var(--f-display);font-size:13px;font-weight:500}
+.tybadge.ov{background:var(--accent-soft);color:var(--fg)}
+.tybadge.tr{background:#e3001b;color:#fff}
+.tybadge.dt{background:#00b2ec;color:#fff}
+.t-red{color:#e3001b}
+.t-dtac{color:#00a9e8}
+.tycard .tscroll{padding:0 16px 14px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{background:var(--surface2);border-radius:10px;padding:10px 12px}
 .tile .k{font-size:12px;color:var(--muted)}
@@ -133,6 +146,7 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
       <div class="sub">
         <span>Data : <b id="lblRange"></b></span>
         <span>Time Use : <b id="lblTime"></b></span>
+        <span>เหลือ : <b id="lblRemain"></b></span>
         <span>เทียบ Last Month : <b id="lblLM"></b></span>
       </div>
     </div>
@@ -158,6 +172,7 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
     <button class="tab" data-tab="staff" role="tab" type="button">Staff Ranking</button>
     <button class="tab" data-tab="cr" role="tab" type="button">Data Connect &amp; Register</button>
     <button class="tab" data-tab="wow" role="tab" type="button">Week On Week</button>
+    <button class="tab" data-tab="type" role="tab" type="button">By Type Shop</button>
   </nav>
   </div>
 
@@ -187,7 +202,7 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
       <b>Register</b> = SOURCES TOL-REGISTER · FLAG_KPI = KPI · ตัด APPOINT_DAY ว่าง · นับตาม TM_KEY_DAY ·
       <b>Pending</b> = TOL-REGISTER · KPI · SUBS_STATUS = Pending แยกเดือนตาม APPOINT_DAY (ยอด ณ วันที่ข้อมูลล่าสุด ไม่เปลี่ยนตามช่วงวันที่) ·
       <b>RR</b> = Actual ÷ จำนวนวันที่เลือก × 31 · <b>MOM</b> = RR เทียบ Sep ทั้งเดือน (หรือ Actual เทียบ Sep วันเดียวกัน) ·
-      <b>Gap Compare LM</b> = Last Month − Actual · <b>Average Connect/Day</b> = Actual ÷ จำนวนวัน ·
+      <b>Gap Compare LM</b> = Last Month − Actual · <b>Average Connect/Day</b> = Actual ÷ จำนวนวัน · <b>Connect / Day To Target 100%</b> = (Target − Actual) ÷ จำนวนวันที่เหลือของเดือน (นับจากวันถัดจากวันสุดท้ายที่เลือก ถึง 31 ต.ค.) ·
       นับเฉพาะสาขาที่มีใน Target By Shop Oct (240 สาขา)
     </p>
   </div>
@@ -211,6 +226,11 @@ td.ns:hover{outline:2px solid var(--accent);outline-offset:-2px}
       <div class="tscroll tall"><table id="wShop"></table></div>
     </div>
     <p class="note">Week นับแบบ ISO (จันทร์–อาทิตย์) ตามปฏิทิน · Week ที่ข้อมูลยังไม่ครบ 7 วัน จะเทียบเฉพาะวันในสัปดาห์ที่มีข้อมูลทั้ง 2 Week (วันต่อวัน) · ใช้ตัวกรอง Region / Area / Shop Type ด้านบน (ไม่ใช้ช่วงวันที่) · เงื่อนไขนับ Connect / Register และสาขา (240 สาขาที่มี Target) เหมือนหน้า Performance · เพิ่ม = เขียว ลด = แดง</p>
+  </div>
+
+  <div id="tab-type" hidden style="display:flex;flex-direction:column;gap:16px">
+    <div class="grid-2" id="typeGrid"></div>
+    <p class="note">Register = TOL-REGISTER · KPI · APPOINT_DAY ไม่ว่าง (นับตาม TM_KEY_DAY) เทียบ Target Register QTY · Connect = TOL-CONNECT · KPI · SUBS_STATUS = Connect (นับตาม ACTIVATION_DAY) เทียบ Target Connect QTY · <b>True</b> = Matching + Non Matching · <b>DTAC</b> = HALL + COCO · Overall = ทุก Type · นับเฉพาะ 240 สาขาใน Target By Shop Oct · ใช้ตัวกรอง Region / Area และช่วงวันที่ด้านบน (ตัวกรอง Type ไม่มีผลกับ Tab นี้) · %ACH เทียบ Target เต็มเดือน</p>
   </div>
 
   <div id="tab-cr" hidden style="display:flex;flex-direction:column;gap:16px">
@@ -292,7 +312,7 @@ function metrics(list){
   }
   const RR = A/dd*MONTH_DAYS;
   const mom = L? (st.lm==="full"? RR/L-1 : A/L-1) : null;
-  return {T,A,R,ach:T?A/T:null,gap:A-T,po,pn,RR,rrAch:T?RR/T:null,gapRR:RR-T,mom,L,gapL:L-A,avg:A/dd};
+  return {T,A,R,ach:T?A/T:null,gap:A-T,po,pn,RR,rrAch:T?RR/T:null,gapRR:RR-T,mom,L,gapL:L-A,avg:A/dd,need:(MONTH_DAYS-st.to)>0?Math.max(0,T-A)/(MONTH_DAYS-st.to):null};
 }
 
 function heat(v,min,max){
@@ -321,6 +341,7 @@ function renderFilters(){
   pills(fLM,[["full","Sep ทั้งเดือน"],["same","วันเดียวกัน"]],st.lm,v=>{st.lm=v; render();});
   lblRange.textContent = `${st.from}–${st.to} Oct 26`;
   lblTime.textContent = pct(days()/MONTH_DAYS);
+  const rem=MONTH_DAYS-st.to; lblRemain.textContent = rem>0? `${rem} วัน (${st.to+1}–31 Oct)` : "สิ้นเดือน";
   lblLM.textContent = st.lm==="full" ? "1–30 Sep 26" : `${st.from}–${Math.min(st.to,30)} Sep 26`;
 }
 const opt = (n)=>`<option value="${n}">${n} Oct</option>`;
@@ -336,13 +357,15 @@ btnReset.onclick=()=>{ Object.assign(st,{region:null,area:null,type:null,from:1,
 const METRIC_HEAD = `<th class="g">TARGET</th><th>Actual</th><th>%ACH</th><th>GAP</th>
   <th class="g">Pending<br>Install Oct 26</th><th class="g">Pending Nov<br>26 (ยกยอด)</th>
   <th class="g">RR<br>Achieve</th><th>%Ach</th><th>Gap RR</th><th>MOM</th>
-  <th class="g">Data Connect<br>Last Month</th><th>Gap Compare<br>Last Month</th><th class="hot">Average<br>Connect / Day</th>`;
-const METRIC_KEYS = ["T","A","ach","gap","po","pn","RR","rrAch","gapRR","mom","L","gapL","avg"];
+  <th class="g">Data Connect<br>Last Month</th><th>Gap Compare<br>Last Month</th><th class="hot">Average<br>Connect / Day</th><th class="g need">Connect / Day<br>To Target 100%</th>`;
+function needTxt(m){ if(m.need==null) return "-"; if(m.A>=m.T) return `<span class="pos">ถึงแล้ว</span>`;
+  const v=m.need; return `<b>${v<10? v.toFixed(1) : fmt(Math.ceil(v))}</b>`; }
+const METRIC_KEYS = ["T","A","ach","gap","po","pn","RR","rrAch","gapRR","mom","L","gapL","avg","need"];
 function metricCells(m,rng){
   return `<td class="g">${fmt(m.T)}</td><td>${fmt(m.A)}</td><td style="${rng?heat(m.ach,rng.a0,rng.a1):""}">${pct(m.ach)}</td><td>${negOnly(m.gap,fmt(m.gap))}</td>
   <td class="g c">${fmt(m.po)}</td><td class="g c">${fmt(m.pn)}</td>
   <td class="g">${fmt(m.RR)}</td><td style="${rng?heat(m.rrAch,rng.r0,rng.r1):""}">${pct(m.rrAch)}</td><td>${negOnly(m.gapRR,fmt(m.gapRR))}</td><td>${sgn(m.mom,pct(m.mom))}</td>
-  <td class="g">${fmt(m.L)}</td><td>${fmt(m.gapL)}</td><td class="c">${fmt(m.avg)}</td>`;
+  <td class="g">${fmt(m.L)}</td><td>${fmt(m.gapL)}</td><td class="c">${fmt(m.avg)}</td><td class="g c">${needTxt(m)}</td>`;
 }
 function ranges(ms){
   const a=ms.map(m=>m.ach).filter(isFinite), r=ms.map(m=>m.rrAch).filter(isFinite);
@@ -677,6 +700,30 @@ function renderWOWShop(){
   wShopCount.textContent=`${rows.length} สาขา`;
   sortHead(wShop,"sortW",types);
 }
+
+/* ---------- By Type Shop ---------- */
+const TYPE_GROUPS={ov:null, tr:["Matching","Non Matching"], dt:["HALL","COCO"]};
+function renderType(){
+  const base=DATA.shops.filter(s=>(!st.region||s.r===st.region)&&(!st.area||s.a===st.area));
+  const areaOrder=[...new Set(DATA.shops.map(s=>s.a))];
+  const blocks=[["reg","ov"],["con","ov"],["reg","tr"],["con","tr"],["reg","dt"],["con","dt"]];
+  const title=(m,g)=>{ const w=m==="reg"?"Register":"Connect";
+    return g==="ov"? `${w} Overall` : g==="tr"? `${w} <span class="t-red">True</span>` : `${w} <span class="t-dtac">DTAC</span>`; };
+  const badge={ov:'<span class="tybadge ov">ทุก Type Shop</span>',tr:'<span class="tybadge tr">Matching + Non Matching</span>',dt:'<span class="tybadge dt">HALL + COCO</span>'};
+  typeGrid.innerHTML=blocks.map(([m,g])=>{
+    const list=base.filter(s=>!TYPE_GROUPS[g]||TYPE_GROUPS[g].includes(s.t));
+    const val=s=> m==="reg"? sum(s.ro,st.from,st.to) : sum(s.co,st.from,st.to);
+    const tg=s=> m==="reg"? s.tr : s.tg;
+    const areas=areaOrder.filter(a=>list.some(s=>s.a===a));
+    const rows=areas.map(a=>{ const l=list.filter(s=>s.a===a); const T=l.reduce((x,s)=>x+tg(s),0), A=l.reduce((x,s)=>x+val(s),0); return {a,r:l[0].r,T,A,ach:T?A/T:null,gap:A-T}; });
+    const ach=rows.map(r=>r.ach).filter(isFinite), lo=Math.min(...ach), hi=Math.max(...ach);
+    const T=rows.reduce((x,r)=>x+r.T,0), A=rows.reduce((x,r)=>x+r.A,0);
+    return `<div class="card tycard"><div class="tyhead"><div><h3>${title(m,g)}</h3><div class="meta">Data : <b>${st.from}–${st.to} Oct 26</b> · Time Use : <b>${pct(days()/MONTH_DAYS)}</b></div></div>${badge[g]}</div>
+      <div class="tscroll"><table><thead><tr><th style="text-align:left">AREA</th><th>REGION</th><th class="g">TARGET</th><th>Actual</th><th>%ACH</th><th>GAP</th></tr></thead><tbody>${
+        rows.map(r=>`<tr><td class="l name">${esc(r.a)}</td><td class="c">${r.r}</td><td class="g">${fmt(r.T)}</td><td>${fmt(r.A)}</td><td style="${heat(r.ach,lo,hi)}">${pct(r.ach)}</td><td>${negOnly(r.gap,fmt(r.gap))}</td></tr>`).join("")||`<tr><td colspan="6" class="c mut">ไม่มีสาขาในตัวกรองนี้</td></tr>`
+      }</tbody><tfoot><tr><td></td><td class="c">Total</td><td class="g">${fmt(T)}</td><td>${fmt(A)}</td><td>${pct(T?A/T:null)}</td><td>${negOnly(A-T,fmt(A-T))}</td></tr></tfoot></table></div></div>`;
+  }).join("");
+}
 /* ---------- tabs / theme ---------- */
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ st.tab=b.dataset.tab;
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
@@ -684,7 +731,8 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ st.tab=b.dataset.ta
   document.getElementById("tab-staff").hidden = st.tab!=="staff";
   document.getElementById("tab-cr").hidden = st.tab!=="cr";
   document.getElementById("tab-wow").hidden = st.tab!=="wow";
-  if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); });
+  document.getElementById("tab-type").hidden = st.tab!=="type";
+  if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType(); });
 qShop.oninput=()=>{st.qShop=qShop.value; renderShop();};
 qStaff.oninput=()=>{st.qStaff=qStaff.value; renderStaff();};
 function curTheme(){ const a=document.documentElement.dataset.theme; if(a) return a;
@@ -696,7 +744,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>rende
 
 function render(){
   renderFilters();
-  renderRegion(); renderArea(); renderShop(); renderChart(); renderStaff(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW();
+  renderRegion(); renderArea(); renderShop(); renderChart(); renderStaff(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType();
 }
 render();
 document.fonts?.ready?.then(()=>{ if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); });
