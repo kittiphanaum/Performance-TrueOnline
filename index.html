@@ -166,6 +166,13 @@ td.cpbar{display:flex;align-items:center;gap:8px}
 td.cpbar .bar{flex:1;height:10px;background:var(--surface2);border-radius:999px;overflow:hidden;min-width:80px}
 td.cpbar .bar span{display:block;height:100%;border-radius:999px}
 td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numeric:tabular-nums}
+.dtt td{text-align:center;padding:5px 4px;font-size:12.5px}
+.dtt th{padding:6px 4px;min-width:34px}
+.dtt td.l{font-size:12.5px}
+.dtt td.ind{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtt td.l{text-align:left}
+.dtt th.wk{--c:#7d8b97}
+.dtt th small{display:block;font-size:10px;opacity:.85;font-weight:400}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{background:var(--surface2);border-radius:10px;padding:10px 12px}
 .tile .k{font-size:12px;color:var(--muted)}
@@ -214,6 +221,7 @@ td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numer
   </section>
   <nav class="tabs" role="tablist">
     <button class="tab on" data-tab="perf" role="tab" type="button">Performance</button>
+    <button class="tab" data-tab="dt" role="tab" type="button">Daily Trend</button>
     <button class="tab" data-tab="staff" role="tab" type="button">Staff Ranking</button>
     <button class="tab" data-tab="cr" role="tab" type="button">Data Connect &amp; Register</button>
     <button class="tab" data-tab="wow" role="tab" type="button">Week On Week</button>
@@ -251,6 +259,16 @@ td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numer
       <b>Actual Compare Last Month</b> = Actual − Data Connect Last Month (ติดลบ = ยังต่ำกว่าเดือนก่อน) · <b>Average Connect/Day</b> = Actual ÷ จำนวนวัน · <b>Connect / Day To Target 100%</b> = (Target − Actual) ÷ จำนวนวันที่เหลือของเดือน (นับจากวันถัดจากวันสุดท้ายที่เลือก ถึง 31 ต.ค.) ·
       นับเฉพาะสาขาที่มีใน Target By Shop Oct (240 สาขา)
     </p>
+  </div>
+
+  <div id="tab-dt" hidden style="display:flex;flex-direction:column;gap:16px">
+    <div class="card campbar"><span class="flabel">ช่วงที่แสดง</span><div class="pills" id="dtMode"></div><span class="cpnote" id="dtNote"></span></div>
+    <div class="card"><div class="tiles" id="dtTiles"></div></div>
+    <div class="grid-2">
+      <div class="card"><h2>Register รายวัน <small id="dtSubR"></small></h2><div class="tscroll"><table id="dtReg" class="dtt"></table></div></div>
+      <div class="card"><h2>Connect รายวัน <small id="dtSubC"></small></h2><div class="tscroll"><table id="dtCon" class="dtt"></table></div></div>
+    </div>
+    <p class="note">Register = TOL-REGISTER · KPI · APPOINT_DAY ไม่ว่าง (TM_KEY_DAY) · Connect = TOL-CONNECT · KPI · SUBS_STATUS = Connect (ACTIVATION_DAY) · นับเฉพาะ 240 สาขาใน Target By Shop Oct · คลิกชื่อ Area เพื่อดูรายสาขา (เปิดคู่กันทั้ง 2 ตาราง เรียงสาขาตาม Connect MTD) · สี Ranking ใส่เฉพาะแถว Total (ยอดรวมรายวัน เทียบกันระหว่างวัน) · เขียว = สูง · แดง = ต่ำ · Total MTD และเฉลี่ย/วัน คิดตั้งแต่วันแรกของช่วงวันที่ที่เลือก · หัวคอลัมน์สีเทา = เสาร์–อาทิตย์ · การ์ดสรุปคิดตามช่วงที่แสดง เทียบ Sep วันเดียวกัน · ใช้ตัวกรองด้านบนร่วมกัน (10 วันล่าสุดนับถอยจากวันสุดท้ายของช่วงวันที่ที่เลือก)</p>
   </div>
 
   <div id="tab-wow" hidden style="display:flex;flex-direction:column;gap:16px">
@@ -937,6 +955,50 @@ function renderCampFocus(list,groups,top,tot){
   cpTable.querySelectorAll("td.cparea").forEach(td=>{ const f=()=>{ const k=td.dataset.k; cpOpen.has(k)?cpOpen.delete(k):cpOpen.add(k); renderCampFocus(list,groups,top,tot); freezeCols(cpTable,1); };
     td.onclick=f; td.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault(); f();} }; });
 }
+
+/* ---------- Daily Trend ---------- */
+st.dtMode="10"; const dtOpen=new Set();
+const WD_TH=["อา.","จ.","อ.","พ.","พฤ.","ศ.","ส."];
+function renderDT(){
+  pills(dtMode,[["10","10 วันล่าสุด"],["all","ทั้งเดือน"]],st.dtMode,v=>{st.dtMode=v; renderDT();});
+  const list=filteredShops(false), to=st.to, from= st.dtMode==="10"? Math.max(st.from,to-9) : st.from, n=to-from+1;
+  const days=[]; for(let d=from; d<=to; d++) days.push(d);
+  dtNote.textContent=`${from}–${to} Oct (${n} วัน)`;
+  dtSubR.textContent=dtSubC.textContent=`${from}–${to} Oct (หัวคอลัมน์ = วันที่)`;
+  const areaOrder=[...new Set(DATA.shops.map(s=>s.a))], areas=areaOrder.filter(a=>list.some(s=>s.a===a));
+  const sumD=(l,key,d)=>l.reduce((x,s)=>x+(s[key][d-1]||0),0);
+  const mFrom=st.from, mN=to-mFrom+1;
+  const mtdOf=(l,key)=>{ let m=0; for(let d=mFrom; d<=to; d++) m+=sumD(l,key,d); return m; };
+  const shopOrder={}; areas.forEach(a=>{ if(dtOpen.has(a)) shopOrder[a]=list.filter(s=>s.a===a).sort((x,y)=>mtdOf([y],"co")-mtdOf([x],"co")||x.n.localeCompare(y.n)); });
+  const build=(tbl,key)=>{
+    const head=days.map(d=>{ const wd=new Date(2026,9,d).getDay(); return `<th class="${wd===0||wd===6?"wk":""}">${d}<small>${WD_TH[wd]}</small></th>`; }).join("");
+    const foot=days.map(d=>sumD(list,key,d)), flo=Math.min(...foot), fhi=Math.max(...foot);
+    const mtd=mtdOf(list,key);
+    let body="";
+    for(const a of areas){ const l=list.filter(s=>s.a===a), open=dtOpen.has(a), m=mtdOf(l,key);
+      body+=`<tr><td class="l name dtarea" tabindex="0" data-k="${esc(a)}" style="cursor:pointer${open?";background:var(--accent-soft)":""}"><span class="caret">${open?"▼":"▶"}</span>${esc(a)}</td>${days.map(d=>`<td>${fmt(sumD(l,key,d))}</td>`).join("")}<td class="g"><b>${fmt(m)}</b></td><td>${(m/mN).toFixed(1)}</td></tr>`;
+      if(open) body+=shopOrder[a].map(s=>{ const sm=mtdOf([s],key); return `<tr class="ltsub"><td class="l ind" title="${esc(s.n)}">${esc(s.n.replace(/^True Shop /,""))}</td>${days.map(d=>{const v=s[key][d-1]||0; return `<td>${v?fmt(v):'<span class="mut">-</span>'}</td>`;}).join("")}<td class="g"><b>${fmt(sm)}</b></td><td>${(sm/mN).toFixed(1)}</td></tr>`; }).join("");
+    }
+    tbl.innerHTML=`<thead><tr><th style="text-align:left">AREA / SHOP</th>${head}<th class="g hot">Total MTD<small>${mFrom}–${to} Oct</small></th><th>เฉลี่ย<small>/วัน MTD</small></th></tr></thead><tbody>${body}</tbody><tfoot><tr><td class="l">Total</td>${foot.map(x=>`<td style="${heat(x,flo,fhi)}">${fmt(x)}</td>`).join("")}<td class="g">${fmt(mtd)}</td><td>${(mtd/mN).toFixed(0)}</td></tr></tfoot>`;
+    tbl.querySelectorAll("td.dtarea").forEach(td=>{ const f=()=>{ const k=td.dataset.k; dtOpen.has(k)?dtOpen.delete(k):dtOpen.add(k); renderDT(); };
+      td.onclick=f; td.onkeydown=ev=>{ if(ev.key==="Enter"||ev.key===" "){ev.preventDefault(); f();} }; });
+    freezeCols(tbl,1);
+    return foot.reduce((x,y)=>x+y,0);
+  };
+  const R=build(dtReg,"ro"), C=build(dtCon,"co");
+  const sep=(key)=>list.reduce((x,s)=>{ let k=0; for(let d=from; d<=Math.min(to,30); d++) k+=s[key][d-1]||0; return x+k; },0);
+  const sR=sep("rp"), sC=sep("cp");
+  const chg=(a,b)=>b?a/b-1:null;
+  const tile=(k,v,d)=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+  const dtxt=(a,b)=>{const c=chg(a,b); return `${sgn(c,(c>0?"+":"")+pct(c))} <span class="mut">vs Sep ${fmt(b)} (${from}–${Math.min(to,30)})</span>`;};
+  dtTiles.innerHTML=[
+    tile(`Register (${from}–${to} Oct)`,fmt(R),dtxt(R,sR)),
+    tile(`Connect (${from}–${to} Oct)`,fmt(C),dtxt(C,sC)),
+    tile("Connect ÷ Register",pct(R?C/R:null),`<span class="mut">Sep ช่วงเดียวกัน ${pct(sR?sC/sR:null)}</span>`),
+    tile("Register เฉลี่ย/วัน",(R/n).toFixed(1),`<span class="mut">Sep ${(sR/Math.max(1,Math.min(to,30)-from+1)).toFixed(1)}</span>`),
+    tile("Connect เฉลี่ย/วัน",(C/n).toFixed(1),`<span class="mut">Sep ${(sC/Math.max(1,Math.min(to,30)-from+1)).toFixed(1)}</span>`)
+  ].join("");
+}
 /* ---------- tabs / theme ---------- */
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ st.tab=b.dataset.tab;
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));
@@ -946,9 +1008,10 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ st.tab=b.dataset.ta
   document.getElementById("tab-wow").hidden = st.tab!=="wow";
   document.getElementById("tab-type").hidden = st.tab!=="type";
   document.getElementById("tab-camp").hidden = st.tab!=="camp";
+  document.getElementById("tab-dt").hidden = st.tab!=="dt";
   if(st.tab==="staff") freezeCols(tStaff,5);
   if(st.tab==="perf") freezeCols(tShop,2);
-  if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType(); if(st.tab==="camp") renderCamp(); });
+  if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType(); if(st.tab==="camp") renderCamp(); if(st.tab==="dt") renderDT(); });
 qShop.oninput=()=>{st.qShop=qShop.value; renderShop();};
 qStaff.oninput=()=>{st.qStaff=qStaff.value; renderStaff();};
 function curTheme(){ const a=document.documentElement.dataset.theme; if(a) return a;
@@ -960,7 +1023,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>rende
 
 function render(){
   renderFilters();
-  renderRegion(); renderArea(); renderShop(); renderChart(); renderStaff(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType(); if(st.tab==="camp") renderCamp();
+  renderRegion(); renderArea(); renderShop(); renderChart(); renderStaff(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); if(st.tab==="type") renderType(); if(st.tab==="camp") renderCamp(); if(st.tab==="dt") renderDT();
 }
 render();
 document.fonts?.ready?.then(()=>{ if(st.tab==="perf") renderChart(); if(st.tab==="cr") renderCR(); if(st.tab==="wow") renderWOW(); });
