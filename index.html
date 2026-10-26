@@ -179,6 +179,11 @@ td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numer
 .dtt td.l{text-align:left}
 .dtt th.wk{--c:#7d8b97}
 .dtt th small{display:block;font-size:10px;opacity:.85;font-weight:400}
+.watermark{position:fixed;inset:0;pointer-events:none;z-index:60;background:var(--fg);opacity:.07;-webkit-mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='260'><text x='210' y='140' text-anchor='middle' font-family='sans-serif' font-size='22' font-weight='700' fill='black' transform='rotate(-24 210 130)'>Internal Retail Operation</text></svg>");mask-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='260'><text x='210' y='140' text-anchor='middle' font-family='sans-serif' font-size='22' font-weight='700' fill='black' transform='rotate(-24 210 130)'>Internal Retail Operation</text></svg>");-webkit-mask-repeat:repeat;mask-repeat:repeat}
+#tPDT tr.pdtreg td{font-size:15px;font-weight:700;border-top:2px solid var(--head);padding-top:8px;padding-bottom:8px}
+#tPDT tr.pdtreg td.mut{font-weight:500;font-size:13px}
+#tPDT tr.ltsub td{font-size:12.5px;font-weight:400}
+#tPDT tr.ltsub td b{font-weight:600}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{background:var(--surface2);border-radius:10px;padding:10px 12px}
 .tile .k{font-size:12px;color:var(--muted)}
@@ -192,6 +197,7 @@ td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numer
 <body>
 
 
+<div class="watermark" aria-hidden="true"></div>
 <div class="wrap">
   <header class="top">
     <div>
@@ -361,6 +367,10 @@ td.cpbar em{font-style:normal;min-width:48px;text-align:right;font-variant-numer
         </span></h2>
       <div class="tscroll tall"><table id="tStaff"></table></div>
       <p class="note" style="margin-top:10px">Target จากชีท Target By Staff Oct (คอลัมน์ TOL) · Actual นับ Connect ตาม SALE_REPRESENT (เงื่อนไขเดียวกับยอด Connect) · Total Register = TOL-REGISTER ทุก Status · KPI · APPOINT_DAY ไม่ว่าง นับตาม TM_KEY_DAY ในช่วงวันที่ที่เลือก · Pending Register = TOL-REGISTER · KPI · SUBS_STATUS = Pending แยกเดือนตาม APPOINT_DAY · เรียงตาม %RR ค่าเริ่มต้น คลิกหัวคอลัมน์เพื่อเรียงใหม่ · แสดงเฉพาะพนักงานในสาขาที่มีใน Target By Shop Oct (มี Shop Type) — ตัดพนักงาน <span id="staffExcl"></span> คนในสาขาที่ไม่ระบุ Shop Type (เช่น Lotus's) ออก</p>
+    </div>
+    <div class="card">
+      <h2><span>PDT By Shop Type <small id="pdtSub"></small></span><small>PDT = Connect ÷ จำนวนพนักงาน (Target By Staff) · นับเฉพาะสาขาที่มีรายชื่อพนักงาน · คลิก Region เพื่อดู Area · สีฟ้าเข้ม = PDT สูง</small></h2>
+      <div class="tscroll"><table id="tPDT"></table></div>
     </div>
     <div class="card">
       <h2><span>No Sale ราย Area × Employee Type <small id="nsCount"></small></span><small>จำนวนพนักงานที่ Connect = 0 ในช่วงวันที่ที่เลือก · สีแดงเข้ม = No Sale มาก · คลิกชื่อ Area เพื่อดูรายสาขา · คลิกช่องตัวเลขเพื่อดูรายชื่อ No Sale ในตาราง Staff Ranking ด้านบน</small></h2>
@@ -533,6 +543,7 @@ function staffMetrics(p){
     reg:sum(p.ro||[],st.from,st.to),po:p.po||0,pn:p.pn||0};
 }
 function renderStaff(){
+  renderPDT();
   staffExcl.textContent=fmt(DATA.staffExcluded);
   renderNS();
   const q=st.qStaff.trim().toLowerCase();
@@ -1015,6 +1026,37 @@ function renderDT(){
     tile("Register เฉลี่ย/วัน",(R/n).toFixed(1),`<span class="mut">Sep ${(sR/Math.max(1,Math.min(to,30)-from+1)).toFixed(1)}</span>`),
     tile("Connect เฉลี่ย/วัน",(C/n).toFixed(1),`<span class="mut">Sep ${(sC/Math.max(1,Math.min(to,30)-from+1)).toFixed(1)}</span>`)
   ].join("");
+}
+
+/* ---------- PDT By Shop Type ---------- */
+const pdtOpen=new Set();
+function renderPDT(){
+  const shops=DATA.shops.filter(s=>(!st.region||s.r===st.region)&&(!st.area||s.a===st.area)&&(!st.shop||s.c===st.shop));
+  const staff=DATA.staff.filter(p=>p.ty!=="ไม่มีใน Target");
+  const hc={}; staff.forEach(p=>{ hc[p.s]=(hc[p.s]||0)+1; });
+  const agg=l=>{ let c=0,h=0; for(const s of l){ const k=hc[s.c]||0; if(!k) continue; c+=sum(s.co,st.from,st.to); h+=k; } return {c,h,v:h?c/h:null}; };
+  const cell=(a,mx,dark,sub)=>{ if(!a.h) return `<td class="c"><span class="mut">-</span></td>`; const r=Math.min(1,a.v/mx), al=((0.08+0.75*r)*(sub?0.55:1)).toFixed(2);
+    const col=dark?`rgba(44,196,245,${al})`:`rgba(0,137,207,${al})`, fg=(!dark&&!sub&&r>0.55)?"color:#fff":"";
+    return `<td class="c" style="background:${col};${fg}" title="Connect ${fmt(a.c)} ÷ ${fmt(a.h)} คน">${a.v.toFixed(2)}</td>`; };
+  const regions=REGIONS.filter(r=>shops.some(s=>s.r===r));
+  const areaOrder=[...new Set(DATA.shops.map(s=>s.a))];
+  const rowsR=regions.map(r=>({r,l:shops.filter(s=>s.r===r)}));
+  const allVals=[]; rowsR.forEach(x=>{ TYPES.forEach(ty=>{ const a=agg(x.l.filter(s=>s.t===ty)); if(a.h) allVals.push(a.v); });
+    if(pdtOpen.has(x.r)) areaOrder.filter(a=>x.l.some(s=>s.a===a)).forEach(a=>TYPES.forEach(ty=>{ const g=agg(x.l.filter(s=>s.a===a&&s.t===ty)); if(g.h) allVals.push(g.v); })); });
+  const mx=Math.max(0.01,...allVals);
+  const dark=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--heat-l"))<50;
+  let body="";
+  for(const x of rowsR){ const open=pdtOpen.has(x.r), tot=agg(x.l);
+    body+=`<tr class="pdtreg"><td class="l name pdtr" tabindex="0" data-k="${x.r}" style="cursor:pointer${open?";background:var(--accent-soft)":""}"><span class="caret">${open?"▼":"▶"}</span>${x.r}</td>${TYPES.map(ty=>cell(agg(x.l.filter(s=>s.t===ty)),mx,dark)).join("")}<td class="g c"><b>${tot.v==null?"-":tot.v.toFixed(2)}</b></td><td class="c mut">${fmt(tot.c)}</td><td class="c mut">${fmt(tot.h)}</td></tr>`;
+    if(open) areaOrder.filter(a=>x.l.some(s=>s.a===a)).forEach(a=>{ const l=x.l.filter(s=>s.a===a), at=agg(l);
+      body+=`<tr class="ltsub"><td class="l ind">${esc(a)}</td>${TYPES.map(ty=>cell(agg(l.filter(s=>s.t===ty)),mx,dark,true)).join("")}<td class="g c"><b>${at.v==null?"-":at.v.toFixed(2)}</b></td><td class="c mut">${fmt(at.c)}</td><td class="c mut">${fmt(at.h)}</td></tr>`; });
+  }
+  const T=agg(shops);
+  tPDT.innerHTML=`<thead><tr><th style="text-align:left">REGION / AREA</th>${TYPES.map(ty=>`<th>${ty}</th>`).join("")}<th class="g hot">Total PDT</th><th>Connect</th><th>พนักงาน</th></tr></thead><tbody>${body}</tbody>
+    <tfoot><tr><td class="l">Total</td>${TYPES.map(ty=>{const a=agg(shops.filter(s=>s.t===ty)); return `<td class="c">${a.v==null?"-":a.v.toFixed(2)}</td>`;}).join("")}<td class="g c">${T.v==null?"-":T.v.toFixed(2)}</td><td class="c">${fmt(T.c)}</td><td class="c">${fmt(T.h)}</td></tr></tfoot>`;
+  pdtSub.textContent=`Connect ${st.from}–${st.to} Oct`;
+  tPDT.querySelectorAll("td.pdtr").forEach(td=>{ const f=()=>{ const k=td.dataset.k; pdtOpen.has(k)?pdtOpen.delete(k):pdtOpen.add(k); renderPDT(); };
+    td.onclick=f; td.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault(); f();} }; });
 }
 /* ---------- tabs / theme ---------- */
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ st.tab=b.dataset.tab;
